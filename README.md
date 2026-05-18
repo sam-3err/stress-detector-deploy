@@ -304,18 +304,3 @@ http://127.0.0.1:5000
 
 ---
 
-## Sample Output
-
-| Low Stress | High Stress |
-|:---:|:---:|
-| ![Low Stress](Images_output/Stress_Low.png) | ![High Stress](Images_output/Stress_High.png) |
-
----
-
-## License
-
-This project is licensed under the **MIT License** — see [LICENSE.md](LICENSE.md) for details.
-
----
-
-<p align="center">Made with ❤️ | Deep Learning Final Project | 2026</p>
