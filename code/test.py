@@ -1,138 +1,258 @@
 import numpy as np
-import dlib
 import cv2
-from keras.models import load_model
-from keras.preprocessing.image import img_to_array
-from scipy.spatial import distance as dist
+import os
+import threading
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
 import imutils
-import matplotlib.pyplot as plt
-from imutils import face_utils
-#from flask import Flask, render_template
 
-#app = Flask(__name__, template_folder='D:/Stress_Detector/code/templates')
-#app.config["DEBUG"] = True
 
-global points, points_lip, emotion_classifier, detector, predictor
+# =========================
+# LOAD FACE DETECTOR
+# =========================
 
-#importing frontal facial landmark detector        
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
-#loading the trained model
-emotion_classifier = load_model("_mini_XCEPTION.102-0.66.hdf5", compile=False)
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
+
+# =========================
+# LOAD MODEL SAFELY
+# =========================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+model_path = os.path.join(BASE_DIR, "_mini_XCEPTION.102-0.66.hdf5")
+
+print("Loading model from:", model_path)
+
+emotion_classifier = load_model(model_path, compile=False)
+
+
+# =========================
+# GLOBAL VARIABLES
+# =========================
+
+model_lock = threading.Lock()
+cascade_lock = threading.Lock()
+
+latest_stress_info = {
+    "emotion": "Analyzing...",
+    "stress_value": 0.0,
+    "stress_label": "System Active",
+    "emotion_probs": {}
+}
+
+EMOTIONS = [
+    "angry",
+    "disgust",
+    "scared",
+    "happy",
+    "sad",
+    "surprised",
+    "neutral"
+]
+
+
+# =========================
+# STRESS CALCULATION FROM EMOTION
+# =========================
+
+def get_stress_from_emotions(preds):
+    # EMOTIONS = ["angry", "disgust", "scared", "happy", "sad", "surprised", "neutral"]
+    # Weights define how much stress each emotion indicates
+    weights = np.array([1.0, 0.8, 1.0, 0.0, 0.8, 0.4, 0.1])
     
-points=[]; points_lip=[]
+    # Calculate weighted sum
+    stress_value = np.sum(preds * weights)
     
-#calculating eye distance in terms of the facial landmark
-def ebdist(leye,reye):
-    eyedist = dist.euclidean(leye,reye)
-    points.append(int(eyedist))
-    return eyedist
+    if stress_value >= 0.65:
+        stress_label = "High Stress"
+    elif stress_value >= 0.35:
+        stress_label = "Moderate Stress"
+    else:
+        stress_label = "Low Stress"
+        
+    return stress_value, stress_label
 
-#calculating lip dostance using facial landmark
-def lpdist(l_lower,l_upper):
-    lipdist = dist.euclidean(l_lower, l_upper)
-    points_lip.append(int(lipdist))
-    return lipdist
+def emotion_finder(face_bb, frame):
+    x, y, w, h = face_bb
+    img_h, img_w = frame.shape[:2]
 
-#finding stressed or not using the emotions 
-def emotion_finder(faces,frame):
-    EMOTIONS = ["angry" ,"disgust","scared", "happy", "sad", "surprised","neutral"]
-    x,y,w,h = face_utils.rect_to_bb(faces)
-    frame = frame[y:y+h,x:x+w]
-    roi = cv2.resize(frame,(64,64))
+    # Clip coordinates to valid image bounds
+    x = max(0, min(x, img_w - 1))
+    y = max(0, min(y, img_h - 1))
+    w = max(1, min(w, img_w - x))
+    h = max(1, min(h, img_h - y))
+
+    roi = frame[y:y+h, x:x+w]
+    if roi.size == 0 or w <= 0 or h <= 0:
+        roi = cv2.resize(frame, (64, 64))
+    else:
+        roi = cv2.resize(roi, (64, 64))
+
+    # Ensure ROI is grayscale and has 1 channel (img_to_array handles this)
+
     roi = roi.astype("float") / 255.0
     roi = img_to_array(roi)
-    roi = np.expand_dims(roi,axis=0)
-    preds = emotion_classifier.predict(roi)[0]
-    emotion_probability = np.max(preds)
+    roi = np.expand_dims(roi, axis=0)
+
+    # Use a threading lock to prevent concurrent prediction crashes in TensorFlow
+    with model_lock:
+        preds = emotion_classifier.predict(roi, verbose=0)[0]
+        
     label = EMOTIONS[preds.argmax()]
-    if label in ['scared','sad','angry']:
-        label = 'Stressed'
-    else:
-        label = 'Not Stressed'
-    return label
+    stress_val, stress_lbl = get_stress_from_emotions(preds)
+    probs_dict = {EMOTIONS[i].title(): float(preds[i]) for i in range(len(EMOTIONS))}
 
-#calculating stress value using the distances
-def normalize_values(points,disp,points_lip,dis_lip):
-    normalize_value_lip = abs(dis_lip - np.min(points_lip))/abs(np.max(points_lip) - np.min(points_lip))
-    normalized_value_eye =abs(disp - np.min(points))/abs(np.max(points) - np.min(points))
-    normalized_value =( normalized_value_eye + normalize_value_lip)/2
-    stress_value = (np.exp(-(normalized_value)))
-    if stress_value>=0.65:
-        stress_label="High Stress"
-    else:
-        stress_label="Low Stress"
-    return stress_value,stress_label
- 
-#processing real time video input to display stress 
+    return label, stress_val, stress_lbl, probs_dict
 
-#@app.route('/')
-#def index():
-#    # Main page
-#    return render_template('index.html')
-#
-#@app.route("/predict", methods=['GET','POST'])
+# =========================
+# STATIC IMAGE PROCESSING (FOR UPLOADS)
+# =========================
+
+def process_image_array(frame):
+    # Resize frame to standard width to prevent OpenCV large-image vector boundary bugs
+    frame = imutils.resize(frame, width=500)
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Detect faces
+    with cascade_lock:
+        faces = face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(30, 30)
+        )
+
+    info = {
+        "emotion": "No Face Detected",
+        "stress_value": 0.0,
+        "stress_label": "Unknown",
+        "emotion_probs": {e.title(): 0.0 for e in EMOTIONS}
+    }
+
+    if len(faces) > 0:
+        for (x, y, w, h) in faces:
+            label, stress_val, stress_lbl, probs_dict = emotion_finder((x, y, w, h), gray)
+            info = {
+                "emotion": label.title(),
+                "stress_value": float(stress_val),
+                "stress_label": stress_lbl,
+                "emotion_probs": probs_dict
+            }
+            # Face rectangle
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            # Stop after first face for static upload
+            break
+    else:
+        # Fallback: treat the entire image as the face if Haar cascade fails
+        h, w = gray.shape
+        label, stress_val, stress_lbl, probs_dict = emotion_finder((0, 0, w, h), gray)
+        info = {
+            "emotion": label.title(),
+            "stress_value": float(stress_val),
+            "stress_label": stress_lbl,
+            "emotion_probs": probs_dict
+        }
+        # Draw a yellow border around the analyzed image region
+        cv2.rectangle(frame, (0, 0), (w - 1, h - 1), (0, 255, 255), 2)
+
+    return frame, info
+
+
+# =========================
+# VIDEO CAMERA CLASS
+# =========================
+
 class VideoCamera(object):
-    def __init__(cap):
-        #real time video capture
-        cap.video = cv2.VideoCapture(0)
-    def __del__(cap):
-        cap.video.release()
-        
-    def get_frame(cap):
-    #    while(True):    
-        ret,frame = cap.video.read()
-        frame = cv2.flip(frame,1)
-        frame = imutils.resize(frame, width=500,height=500)
-        #gettting points of eye from the facial landmark
-        (lBegin, lEnd) = face_utils.FACIAL_LANDMARKS_IDXS["right_eyebrow"]
-        (rBegin, rEnd) = face_utils.FACIAL_LANDMARKS_IDXS["left_eyebrow"]
-        # getting lip points from facial landmarks
-        (l_lower, l_upper) = face_utils.FACIAL_LANDMARKS_IDXS["mouth"]
-        #preprocessing the image
-        gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-        
-        detections = detector(gray,0)
-        for detection in detections:
-            emotion= emotion_finder(detection,gray)
-            cv2.putText(frame, emotion, (10,10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            shape = predictor(frame,detection)
-            shape = face_utils.shape_to_np(shape)
-               
-            leyebrow = shape[lBegin:lEnd]
-            reyebrow = shape[rBegin:rEnd]
-            openmouth = shape[l_lower:l_upper]
-            # figuring out convex shape 
-            reyebrowhull = cv2.convexHull(reyebrow)
-            leyebrowhull = cv2.convexHull(leyebrow)
-            openmouthhull = cv2.convexHull(openmouth) 
-    
-#            cv2.drawContours(frame, [reyebrowhull], -1, (0, 255, 0), 1)
-#            cv2.drawContours(frame, [leyebrowhull], -1, (0, 255, 0), 1)
-#            cv2.drawContours(frame, [openmouthhull], -1, (0, 255, 0), 1)
-            
-            # Measuring lip distance and eye distance
-            lipdist = lpdist(openmouthhull[-1],openmouthhull[0])
-            eyedist = ebdist(leyebrow[-1],reyebrow[0])
-    
-            stress_value,stress_label = normalize_values(points,eyedist, points_lip, lipdist)
-            #displaying stress levels and value 
-            cv2.putText(frame, emotion, (10,10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (235, 52, 52), 2)
-            cv2.putText(frame,"stress value:{}".format(str(int(stress_value*100))),(10,40),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (51, 66, 232), 2)
-            cv2.putText(frame,"Stress level:{}".format((stress_label)),(10,60),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (35, 189, 25), 2)
-    #        cv2.imshow("Frame", frame)
-        ret, jpeg = cv2.imencode('.jpg', frame)
-        return jpeg.tobytes()
-    #    #break the video by pressing 'q'
-    #        key = cv2.waitKey(1) & 0xFF
-    #        if key == ord('q'):
-    #            break
-    def plt_show():
-        plot_stress=plt.plot(range(len(points)),points,'ro')
-        plt.title("Stress Levels")
-        plt.show()
-        return plot_stress
-    #    cv2.destroyAllWindows()
-    #    cap.release()
-    #    return "plot"
 
+    def __init__(self, camera_index=0):
+
+        print("Opening camera...")
+
+        # Windows webcam fix removed, try default backend
+        self.video = cv2.VideoCapture(camera_index)
+
+        if not self.video.isOpened():
+            print("ERROR: Camera could not be opened")
+
+    def __del__(self):
+
+        if self.video.isOpened():
+            self.video.release()
+
+    def get_frame(self):
+
+        # print("Trying to read frame...")
+
+        ret, frame = self.video.read()
+
+        # print("RET VALUE:", ret)
+
+        # Camera failed
+        if not ret or frame is None:
+
+            blank = np.zeros((500, 500, 3), dtype=np.uint8)
+
+            cv2.putText(
+                blank,
+                "Camera not available",
+                (60, 250),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (0, 0, 255),
+                2
+            )
+
+            _, jpeg = cv2.imencode('.jpg', blank)
+
+            return jpeg.tobytes()
+
+        # Flip frame
+        frame = cv2.flip(frame, 1)
+
+        # Resize frame
+        frame = imutils.resize(frame, width=500)
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Detect faces
+        with cascade_lock:
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
+
+        for (x, y, w, h) in faces:
+            label, stress_val, stress_lbl, probs_dict = emotion_finder((x, y, w, h), gray)
+            
+            # Update global state for live stream status polling
+            global latest_stress_info
+            latest_stress_info = {
+                "emotion": label.title(),
+                "stress_value": float(stress_val),
+                "stress_label": stress_lbl,
+                "emotion_probs": probs_dict
+            }
+
+            # Draw Face rectangle only (no text on video as per request)
+            cv2.rectangle(
+                frame,
+                (x, y),
+                (x + w, y + h),
+                (0, 255, 0),
+                2
+            )
+
+        _, jpeg = cv2.imencode('.jpg', frame)
+
+        return jpeg.tobytes()

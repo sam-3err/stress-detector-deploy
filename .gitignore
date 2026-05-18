@@ -1,0 +1,26 @@
+# Virtual Environments
+code/venv/
+venv/
+env/
+ENV/
+.env
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+code/__pycache__/
+
+# Large zip archives
+*.zip
+*.tar.gz
+*.rar
+
+# IDEs
+.vscode/
+.idea/
+
+# Large high-res images (to avoid pushing 23MB files)
+bearded-young-man-wearing-shirt.jpg
+sad-author-thinking-article-feeling-writers-block.jpg

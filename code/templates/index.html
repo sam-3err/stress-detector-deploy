@@ -1,9 +1,384 @@
-<html>
-  <head>
-    <title>Stress Detector API</title>
-  </head>
-  <body>
-    <h1>Stress Detector API</h1>
-    <img id="bg" src="{{ url_for('predict') }}">
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stress Detector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent-glow: rgba(0, 212, 255, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: #b0c4de;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-gradient);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-primary);
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            padding: 2rem;
+            background: var(--card-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-weight: 600;
+            margin: 0;
+            font-size: 2.5rem;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            background: -webkit-linear-gradient(#fff, #a0eaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            margin-top: 0.5rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 16px;
+            padding: 4px;
+            background: linear-gradient(45deg, #ff007f, #00d4ff);
+            animation: pulse-glow 3s ease-in-out infinite;
+            box-shadow: 0 0 25px var(--accent-glow);
+        }
+
+        .video-container {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+        }
+
+        img.video-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .status-panel {
+            margin-top: 2.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+        }
+
+        .status-badge {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.8rem 1.5rem;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            border: 1px solid var(--glass-border);
+            transition: transform 0.3s ease;
+        }
+
+        .status-badge:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .status-badge .indicator {
+            width: 10px;
+            height: 10px;
+            background: #00ff88;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #00ff88;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Stress Detector AI</h1>
+            <p class="subtitle">Deep Neural Emotion & Stress Analysis System</p>
+        </div>
+        
+        <div class="video-wrapper">
+            <div class="video-container" style="position: relative;">
+                <img id="bg" class="video-stream" src="{{ url_for('predict') }}" alt="Live Webcam Stream" crossorigin="anonymous">
+                <canvas id="snapshotCanvas" class="video-stream" style="display: none; width: 100%; height: 100%; object-fit: cover;"></canvas>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; gap: 1rem; align-items: center; justify-content: center; flex-wrap: wrap;">
+            <button id="captureBtn" onclick="toggleCapture()" style="background: linear-gradient(45deg, #00d4ff, #00ff88); color: #000; border: none; padding: 12px 28px; border-radius: 30px; font-weight: 600; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4); font-family: 'Outfit', sans-serif; transition: transform 0.2s;">
+                📸 Capture Live Frame
+            </button>
+            <span style="color: var(--text-secondary); font-weight: bold;">OR</span>
+            <input type="file" id="imageUpload" accept="image/*" style="display: none;" onchange="uploadImage(event)">
+            <button onclick="document.getElementById('imageUpload').click()" style="background: linear-gradient(45deg, #ff007f, #7f00ff); color: #fff; border: none; padding: 12px 28px; border-radius: 30px; font-weight: 600; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(255, 0, 127, 0.4); font-family: 'Outfit', sans-serif; transition: transform 0.2s;">
+                📁 Upload Picture
+            </button>
+        </div>
+
+        <div class="status-panel" id="metricsPanel">
+            <div class="status-badge" style="border-color: rgba(255, 255, 255, 0.3);">
+                <span style="color: #b0c4de;">Emotion:</span> <strong id="valEmotion" style="font-size: 1.1rem;">Analyzing...</strong>
+            </div>
+            <div class="status-badge" style="border-color: rgba(0, 212, 255, 0.3);">
+                <span style="color: #b0c4de;">Stress Score:</span> <strong id="valStressPct" style="font-size: 1.1rem;">0%</strong>
+            </div>
+            <div class="status-badge" id="badgeLabel" style="border-color: rgba(255, 0, 127, 0.3); transition: border-color 0.3s ease;">
+                <span style="color: #b0c4de;">Level:</span> <strong id="valLabel" style="font-size: 1.1rem;">Waiting...</strong>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; width: 100%; max-width: 640px;">
+            <h3 style="margin-bottom: 1rem; color: #a0eaff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">Emotion Breakdown</h3>
+            <div id="emotionBars" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <!-- Bars will be generated by JS -->
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; width: 100%; max-width: 640px; background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); box-sizing: border-box;">
+            <h3 style="margin-bottom: 1rem; margin-top: 0; color: #a0eaff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">Live Stress Trend</h3>
+            <canvas id="stressChart" width="600" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let isCaptured = false;
+        let isUploaded = false;
+        
+        let pollingInterval = setInterval(fetchStatus, 500);
+
+        function updateMetrics(info) {
+            document.getElementById('valEmotion').innerText = info.emotion || 'N/A';
+            document.getElementById('valStressPct').innerText = Math.round((info.stress_value || 0) * 100) + '%';
+            document.getElementById('valLabel').innerText = info.stress_label || 'N/A';
+            
+            const labelBadge = document.getElementById('badgeLabel');
+            if(info.stress_label === 'High Stress') labelBadge.style.borderColor = 'rgba(255, 50, 50, 0.8)';
+            else if(info.stress_label === 'Moderate Stress') labelBadge.style.borderColor = 'rgba(255, 165, 0, 0.8)';
+            else labelBadge.style.borderColor = 'rgba(0, 255, 136, 0.8)';
+            
+            // Update Emotion Bars
+            const barsContainer = document.getElementById('emotionBars');
+            if (info.emotion_probs && Object.keys(info.emotion_probs).length > 0) {
+                let html = '';
+                for (const [emo, prob] of Object.entries(info.emotion_probs)) {
+                    const pct = Math.round(prob * 100);
+                    let color = '#00d4ff';
+                    if (emo === 'Happy') color = '#00ff88';
+                    else if (emo === 'Angry' || emo === 'Scared') color = '#ff3366';
+                    else if (emo === 'Neutral') color = '#b0c4de';
+                    else if (emo === 'Sad') color = '#ff9933';
+                    else if (emo === 'Surprised') color = '#9933ff';
+                    else if (emo === 'Disgust') color = '#a3cc00';
+                    
+                    html += `
+                        <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.9rem;">
+                                <span>${emo}</span>
+                                <strong>${pct}%</strong>
+                            </div>
+                            <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
+                                <div style="width: ${pct}%; background: ${color}; height: 100%; transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                barsContainer.innerHTML = html;
+            }
+            
+            // Update Chart
+            if (!isCaptured && !isUploaded) {
+                const stressVal = Math.round((info.stress_value || 0) * 100);
+                const data = stressChart.data.datasets[0].data;
+                data.push(stressVal);
+                data.shift();
+                stressChart.update();
+            }
+        }
+
+        const ctxChart = document.getElementById('stressChart').getContext('2d');
+        const stressChart = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+                labels: Array(30).fill(''),
+                datasets: [{
+                    label: 'Stress Score (%)',
+                    data: Array(30).fill(0),
+                    borderColor: '#ff007f',
+                    backgroundColor: 'rgba(255, 0, 127, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: '#b0c4de' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        async function fetchStatus() {
+            if (isCaptured || isUploaded) return; 
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                updateMetrics(data);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function toggleCapture() {
+            const img = document.getElementById('bg');
+            const canvas = document.getElementById('snapshotCanvas');
+            const btn = document.getElementById('captureBtn');
+
+            if (!isCaptured && !isUploaded) {
+                canvas.width = img.naturalWidth || 640;
+                canvas.height = img.naturalHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                img.style.display = 'none';
+                canvas.style.display = 'block';
+                
+                btn.innerHTML = '🔄 Resume Live Video';
+                isCaptured = true;
+            } else {
+                img.style.display = 'block';
+                canvas.style.display = 'none';
+                
+                btn.innerHTML = '📸 Capture Live Frame';
+                isCaptured = false;
+                isUploaded = false;
+                document.getElementById('imageUpload').value = '';
+            }
+        }
+
+        async function uploadImage(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const btn = document.getElementById('captureBtn');
+            btn.innerHTML = '⏳ Processing...';
+            
+            try {
+                const res = await fetch('/upload_image', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                if(data.error) {
+                    alert(data.error);
+                    btn.innerHTML = '📸 Capture Live Frame';
+                    return;
+                }
+                
+                const img = document.getElementById('bg');
+                const canvas = document.getElementById('snapshotCanvas');
+                
+                img.style.display = 'none';
+                canvas.style.display = 'block';
+                
+                const newImg = new Image();
+                newImg.onload = function() {
+                    canvas.width = newImg.width;
+                    canvas.height = newImg.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(newImg, 0, 0);
+                }
+                newImg.src = data.image;
+                
+                updateMetrics(data.info);
+                
+                btn.innerHTML = '🔄 Return to Live Video';
+                isCaptured = true;
+                isUploaded = true;
+                
+            } catch(err) {
+                console.error(err);
+                alert("Upload failed.");
+                btn.innerHTML = '📸 Capture Live Frame';
+            }
+        }
+    </script>
+</body>
 </html>
