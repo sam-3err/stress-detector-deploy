@@ -1,6 +1,6 @@
 # Virtual Environments
-code/venv/
 venv/
+code/venv/
 env/
 ENV/
 .env
@@ -10,17 +10,24 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-code/__pycache__/
 
-# Large zip archives
+# Large zip/archive files
 *.zip
 *.tar.gz
 *.rar
+
+# Large binary / model data files (too big for GitHub)
+*.dat
+code/shape_predictor_68_face_landmarks.dat
 
 # IDEs
 .vscode/
 .idea/
 
-# Large high-res images (to avoid pushing 23MB files)
+# Large sample images (not needed in repo)
 bearded-young-man-wearing-shirt.jpg
 sad-author-thinking-article-feeling-writers-block.jpg
+
+# OS files
+.DS_Store
+Thumbs.db
