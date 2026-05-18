@@ -304,3 +304,4 @@ http://127.0.0.1:5000
 
 ---
 
+<p align="center">Made with ❤️ | Deep Learning Final Project | 2026</p>
