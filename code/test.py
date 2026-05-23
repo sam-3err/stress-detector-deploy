@@ -9,9 +9,6 @@ os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
 os.environ['TF_NUM_INTEROP_THREADS'] = '1'
 os.environ['OMP_NUM_THREADS'] = '1'
 
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
-
 
 # =========================
 # LOAD FACE DETECTOR
@@ -27,16 +24,12 @@ face_cascade = cv2.CascadeClassifier(
 # =========================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 model_path = os.path.join(BASE_DIR, "_mini_XCEPTION.102-0.66.hdf5")
+USE_TF_MODEL = os.environ.get("USE_TF_MODEL", "0") == "1"
 
-print("Loading model from:", model_path)
-
-emotion_classifier = load_model(model_path, compile=False)
-print("MODEL INPUT SHAPE:", emotion_classifier.input_shape)
-model_input_shape = emotion_classifier.input_shape
-model_height = model_input_shape[1] or 64
-model_width = model_input_shape[2] or 64
+emotion_classifier = None
+model_height = 64
+model_width = 64
 
 
 # =========================
@@ -64,6 +57,37 @@ EMOTIONS = [
 ]
 
 
+def get_empty_probs():
+    return {e.title(): 0.0 for e in EMOTIONS}
+
+
+def load_emotion_model_if_enabled():
+    global emotion_classifier, model_height, model_width
+
+    if not USE_TF_MODEL:
+        return None
+
+    if emotion_classifier is not None:
+        return emotion_classifier
+
+    try:
+        from tensorflow.keras.models import load_model
+
+        print("Loading model from:", model_path)
+        emotion_classifier = load_model(model_path, compile=False)
+        print("MODEL INPUT SHAPE:", emotion_classifier.input_shape)
+
+        model_input_shape = emotion_classifier.input_shape
+        model_height = model_input_shape[1] or 64
+        model_width = model_input_shape[2] or 64
+        return emotion_classifier
+
+    except Exception as e:
+        print("MODEL LOAD FAILED, USING FALLBACK:", e)
+        emotion_classifier = None
+        return None
+
+
 # =========================
 # STRESS CALCULATION FROM EMOTION
 # =========================
@@ -84,6 +108,34 @@ def get_stress_from_emotions(preds):
         stress_label = "Low Stress"
         
     return stress_value, stress_label
+
+
+def fallback_emotion_finder(face_roi):
+    roi = cv2.resize(face_roi, (64, 64))
+    brightness = float(np.mean(roi)) / 255.0
+    contrast = float(np.std(roi)) / 128.0
+    edges = cv2.Canny(roi, 60, 140)
+    edge_density = float(np.mean(edges > 0))
+
+    stress_score = np.clip((contrast * 0.45) + (edge_density * 1.8) + ((0.55 - brightness) * 0.25), 0.0, 1.0)
+
+    preds = np.array([
+        0.12 + stress_score * 0.24,
+        0.03,
+        0.10 + stress_score * 0.25,
+        max(0.03, 0.26 - stress_score * 0.18),
+        0.12 + stress_score * 0.18,
+        0.08,
+        0.29 - stress_score * 0.12
+    ])
+    preds = np.clip(preds, 0.001, None)
+    preds = preds / np.sum(preds)
+
+    label = EMOTIONS[preds.argmax()]
+    stress_val, stress_lbl = get_stress_from_emotions(preds)
+    probs_dict = {EMOTIONS[i].title(): float(preds[i]) for i in range(len(EMOTIONS))}
+
+    return label, stress_val, stress_lbl, probs_dict
 
 
 def resize_to_width(frame, width=500):
@@ -108,16 +160,20 @@ def emotion_finder(face_bb, frame):
 
     roi = frame[y:y+h, x:x+w]
     if roi.size == 0 or w <= 0 or h <= 0:
-        roi = cv2.resize(frame, (model_width, model_height))
-    else:
-        roi = cv2.resize(roi, (model_width, model_height))
+        roi = frame
 
+    model = load_emotion_model_if_enabled()
+
+    if model is None:
+        return fallback_emotion_finder(roi)
+
+    roi = cv2.resize(roi, (model_width, model_height))
     roi = roi.astype("float") / 255.0
-    roi = img_to_array(roi)
+    roi = np.expand_dims(roi, axis=-1)
     roi = np.expand_dims(roi, axis=0)
 
     with model_lock:
-        preds = emotion_classifier.predict(roi, verbose=0)[0]
+        preds = model.predict(roi, verbose=0)[0]
         
     label = EMOTIONS[preds.argmax()]
     stress_val, stress_lbl = get_stress_from_emotions(preds)
