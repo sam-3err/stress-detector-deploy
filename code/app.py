@@ -4,10 +4,22 @@ import test
 import cv2
 import numpy as np
 import base64
-
+from flask import request, jsonify
 app = Flask(__name__, template_folder='templates')
 
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.json['image']
 
+    encoded = data.split(",")[1]
+    img_data = base64.b64decode(encoded)
+
+    np_arr = np.frombuffer(img_data, np.uint8)
+    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+    result = process_image_array(frame)
+
+    return jsonify(result)
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -43,6 +55,24 @@ def predict():
 @app.route('/status')
 def status():
     return jsonify(test.latest_stress_info)
+
+@app.route('/analyze_frame', methods=['POST'])
+def analyze_frame():
+
+    data = request.json['image']
+
+    encoded_data = data.split(',')[1]
+
+    np_arr = np.frombuffer(
+        base64.b64decode(encoded_data),
+        np.uint8
+    )
+
+    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+    result = process_image_array(frame)
+
+    return jsonify(result)
 
 @app.route('/upload_image', methods=['POST'])
 def upload_image():

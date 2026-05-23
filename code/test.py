@@ -176,9 +176,8 @@ class VideoCamera(object):
 
         print("Opening camera...")
 
-        # Windows webcam fix removed, try default backend
-        self.video = cv2.VideoCapture(camera_index)
-
+       
+        
         if not self.video.isOpened():
             print("ERROR: Camera could not be opened")
 
