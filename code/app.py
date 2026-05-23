@@ -43,9 +43,9 @@ def analyze_frame():
         )
 
         # Process image using AI model
-        result = process_image_array(frame)
+        _, info = process_image_array(frame)
 
-        return jsonify(result)
+        return jsonify(info)
 
     except Exception as e:
 
