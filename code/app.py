@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import base64
 import os
+import traceback
 
 app = Flask(__name__, template_folder='templates')
 
@@ -26,7 +27,16 @@ def analyze_frame():
 
     try:
 
-        data = request.json['image']
+        payload = request.get_json(silent=True) or {}
+        data = payload.get('image')
+
+        if not data or ',' not in data:
+            return jsonify({
+                "emotion": "No Frame",
+                "stress_value": 0,
+                "stress_label": "Waiting for camera",
+                "emotion_probs": {}
+            })
 
         # Remove base64 header
         encoded_data = data.split(',')[1]
@@ -42,6 +52,14 @@ def analyze_frame():
             cv2.IMREAD_COLOR
         )
 
+        if frame is None:
+            return jsonify({
+                "emotion": "No Frame",
+                "stress_value": 0,
+                "stress_label": "Waiting for camera",
+                "emotion_probs": {}
+            })
+
         # Process image using AI model
         _, info = process_image_array(frame)
 
@@ -50,13 +68,14 @@ def analyze_frame():
     except Exception as e:
 
         print("ANALYZE FRAME ERROR:", e)
+        traceback.print_exc()
 
         return jsonify({
             "emotion": "Error",
             "stress_value": 0,
             "stress_label": "Error",
             "emotion_probs": {}
-        })
+        }), 500
 
 
 # ==========================================
@@ -113,10 +132,11 @@ def upload_image():
     except Exception as e:
 
         print("UPLOAD ERROR:", e)
+        traceback.print_exc()
 
         return jsonify({
             'error': str(e)
-        })
+        }), 500
 
 
 # ==========================================

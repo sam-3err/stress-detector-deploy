@@ -7,7 +7,6 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-import imutils
 
 
 # =========================
@@ -30,6 +29,9 @@ model_path = os.path.join(BASE_DIR, "_mini_XCEPTION.102-0.66.hdf5")
 print("Loading model from:", model_path)
 
 emotion_classifier = load_model(model_path, compile=False)
+model_input_shape = emotion_classifier.input_shape
+model_height = model_input_shape[1] or 64
+model_width = model_input_shape[2] or 64
 
 
 # =========================
@@ -78,6 +80,17 @@ def get_stress_from_emotions(preds):
         
     return stress_value, stress_label
 
+
+def resize_to_width(frame, width=500):
+    h, w = frame.shape[:2]
+    if w <= width:
+        return frame
+
+    scale = width / float(w)
+    height = int(h * scale)
+    return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+
+
 def emotion_finder(face_bb, frame):
     x, y, w, h = face_bb
     img_h, img_w = frame.shape[:2]
@@ -90,9 +103,9 @@ def emotion_finder(face_bb, frame):
 
     roi = frame[y:y+h, x:x+w]
     if roi.size == 0 or w <= 0 or h <= 0:
-        roi = cv2.resize(frame, (64, 64))
+        roi = cv2.resize(frame, (model_width, model_height))
     else:
-        roi = cv2.resize(roi, (64, 64))
+        roi = cv2.resize(roi, (model_width, model_height))
 
     # Ensure ROI is grayscale and has 1 channel (img_to_array handles this)
 
@@ -115,8 +128,16 @@ def emotion_finder(face_bb, frame):
 # =========================
 
 def process_image_array(frame):
+    if frame is None:
+        return None, {
+            "emotion": "No Frame",
+            "stress_value": 0.0,
+            "stress_label": "Waiting for camera",
+            "emotion_probs": {e.title(): 0.0 for e in EMOTIONS}
+        }
+
     # Resize frame to standard width to prevent OpenCV large-image vector boundary bugs
-    frame = imutils.resize(frame, width=500)
+    frame = resize_to_width(frame, width=500)
 
     # Convert to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -175,15 +196,14 @@ class VideoCamera(object):
     def __init__(self, camera_index=0):
 
         print("Opening camera...")
-
-       
+        self.video = cv2.VideoCapture(camera_index)
         
         if not self.video.isOpened():
             print("ERROR: Camera could not be opened")
 
     def __del__(self):
 
-        if self.video.isOpened():
+        if hasattr(self, "video") and self.video.isOpened():
             self.video.release()
 
     def get_frame(self):
@@ -217,7 +237,7 @@ class VideoCamera(object):
         frame = cv2.flip(frame, 1)
 
         # Resize frame
-        frame = imutils.resize(frame, width=500)
+        frame = resize_to_width(frame, width=500)
 
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

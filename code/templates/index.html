@@ -1,779 +1,478 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Stress Detector</title>
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <style>
-
         :root {
             --bg-gradient: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-            --card-bg: rgba(255,255,255,0.05);
-            --glass-border: rgba(255,255,255,0.1);
+            --card-bg: rgba(255, 255, 255, 0.06);
+            --glass-border: rgba(255, 255, 255, 0.14);
             --text-primary: #ffffff;
             --text-secondary: #b0c4de;
+            --accent: #00d4ff;
+            --danger: #ff5d7a;
         }
 
         * {
             box-sizing: border-box;
         }
 
-        body, html {
-
+        html,
+        body {
             margin: 0;
-            padding: 0;
-
-            width: 100%;
             min-height: 100vh;
-
-            font-family: 'Outfit', sans-serif;
-
+            font-family: "Outfit", sans-serif;
             background: var(--bg-gradient);
             background-size: 400% 400%;
-
             animation: gradientBG 15s ease infinite;
-
-            display: flex;
-            justify-content: center;
-            align-items: center;
-
             color: var(--text-primary);
         }
 
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
         @keyframes gradientBG {
-
             0% { background-position: 0% 50%; }
-
             50% { background-position: 100% 50%; }
-
             100% { background-position: 0% 50%; }
         }
 
         .container {
-
-            width: 92%;
-            max-width: 850px;
-
-            padding: 2rem;
-
+            width: min(920px, 100%);
+            padding: 28px;
             background: var(--card-bg);
-
-            backdrop-filter: blur(15px);
-
-            border-radius: 24px;
-
             border: 1px solid var(--glass-border);
-
-            box-shadow: 0 8px 32px rgba(0,0,0,0.37);
-
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            border-radius: 22px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+            backdrop-filter: blur(15px);
         }
 
         .header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 24px;
         }
 
         h1 {
-
             margin: 0;
-
-            font-size: 2.7rem;
-
+            font-size: clamp(2rem, 6vw, 2.7rem);
             font-weight: 600;
-
-            background: linear-gradient(#fff, #a0eaff);
-
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
 
         .subtitle {
-
-            margin-top: 0.5rem;
-
+            margin: 8px 0 0;
             color: var(--text-secondary);
-
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
 
         .video-wrapper {
-
-            width: 100%;
-            max-width: 640px;
-
-            border-radius: 16px;
-
+            width: min(640px, 100%);
+            margin: 0 auto;
             padding: 4px;
-
+            border-radius: 16px;
             background: linear-gradient(45deg, #ff007f, #00d4ff);
-
-            box-shadow: 0 0 20px rgba(0,212,255,0.4);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.35);
         }
 
         .video-container {
-
-            width: 100%;
-
-            aspect-ratio: 4/3;
-
-            background: #000;
-
-            border-radius: 12px;
-
-            overflow: hidden;
-
             position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            overflow: hidden;
+            border-radius: 12px;
+            background: #000;
         }
 
         .video-stream {
-
             width: 100%;
             height: 100%;
-
             object-fit: cover;
         }
 
-        .controls {
-
-            margin-top: 2rem;
-
+        .controls,
+        .status-panel {
             display: flex;
-
-            gap: 1rem;
-
             flex-wrap: wrap;
-
             justify-content: center;
+            gap: 12px;
+            margin-top: 22px;
         }
 
         button {
-
-            border: none;
-
-            padding: 12px 28px;
-
+            min-height: 44px;
+            border: 0;
             border-radius: 30px;
-
+            padding: 11px 22px;
+            font-family: inherit;
             font-size: 1rem;
-
             font-weight: 600;
-
             cursor: pointer;
-
-            font-family: 'Outfit', sans-serif;
         }
 
         .capture-btn {
-
+            color: #001115;
             background: linear-gradient(45deg, #00d4ff, #00ff88);
-
-            color: #000;
         }
 
         .upload-btn {
-
+            color: #fff;
             background: linear-gradient(45deg, #ff007f, #7f00ff);
-
-            color: white;
-        }
-
-        .status-panel {
-
-            margin-top: 2rem;
-
-            display: flex;
-
-            gap: 1rem;
-
-            flex-wrap: wrap;
-
-            justify-content: center;
         }
 
         .status-badge {
+            min-width: 150px;
+            padding: 12px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            background: rgba(0, 0, 0, 0.28);
+            text-align: center;
+        }
 
-            background: rgba(0,0,0,0.3);
-
-            padding: 0.8rem 1.5rem;
-
-            border-radius: 30px;
-
-            border: 1px solid rgba(255,255,255,0.1);
+        .status-badge strong {
+            display: block;
+            margin-top: 4px;
         }
 
         .section {
-
-            margin-top: 2rem;
-
-            width: 100%;
-
-            max-width: 640px;
+            width: min(640px, 100%);
+            margin: 24px auto 0;
         }
 
         .section h3 {
-
+            margin: 0 0 12px;
+            padding-bottom: 8px;
             color: #a0eaff;
-
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-
-            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         #emotionBars {
-
             display: grid;
-
-            grid-template-columns: 1fr 1fr;
-
-            gap: 1rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
         }
 
+        .emotion-card,
         .chart-box {
-
-            background: rgba(0,0,0,0.3);
-
-            padding: 1.5rem;
-
-            border-radius: 16px;
+            padding: 14px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.28);
         }
 
+        .emotion-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .bar-track {
+            width: 100%;
+            height: 7px;
+            overflow: hidden;
+            border-radius: 99px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.2s ease;
+        }
+
+        .error {
+            color: var(--danger);
+        }
+
+        @media (max-width: 620px) {
+            body {
+                padding: 12px;
+            }
+
+            .container {
+                padding: 18px;
+                border-radius: 16px;
+            }
+
+            #emotionBars {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
-
 <body>
+    <main class="container">
+        <header class="header">
+            <h1>Stress Detector AI</h1>
+            <p class="subtitle">Live emotion and stress analysis</p>
+        </header>
 
-<div class="container">
+        <section class="video-wrapper">
+            <div class="video-container">
+                <video id="webcam" class="video-stream" autoplay muted playsinline></video>
+                <canvas id="hiddenCanvas" style="display: none;"></canvas>
+                <canvas id="snapshotCanvas" class="video-stream" style="display: none;"></canvas>
+            </div>
+        </section>
 
-    <div class="header">
+        <section class="controls">
+            <button id="captureBtn" class="capture-btn" type="button">Capture Live Frame</button>
+            <input id="imageUpload" type="file" accept="image/*" style="display: none;">
+            <button id="uploadBtn" class="upload-btn" type="button">Upload Picture</button>
+        </section>
 
-        <h1>Stress Detector AI</h1>
+        <section class="status-panel">
+            <div class="status-badge">
+                Emotion
+                <strong id="valEmotion">Waiting...</strong>
+            </div>
+            <div class="status-badge">
+                Stress
+                <strong id="valStressPct">0%</strong>
+            </div>
+            <div class="status-badge">
+                Level
+                <strong id="valLabel">Waiting...</strong>
+            </div>
+        </section>
 
-        <p class="subtitle">
-            Deep Neural Emotion & Stress Analysis System
-        </p>
+        <section class="section">
+            <h3>Emotion Breakdown</h3>
+            <div id="emotionBars"></div>
+        </section>
 
-    </div>
+        <section class="section">
+            <div class="chart-box">
+                <h3>Live Stress Trend</h3>
+                <canvas id="stressChart"></canvas>
+            </div>
+        </section>
+    </main>
 
-    <div class="video-wrapper">
+    <script>
+        const EMOTIONS = ["Angry", "Disgust", "Scared", "Happy", "Sad", "Surprised", "Neutral"];
 
-        <div class="video-container">
+        let isCaptured = false;
+        let isUploaded = false;
+        let isAnalyzing = false;
+        let realtimeTimer = null;
 
-            <!-- LIVE WEBCAM -->
-            <video
-                id="webcam"
-                class="video-stream"
-                autoplay
-                playsinline>
-            </video>
+        const webcam = document.getElementById("webcam");
+        const hiddenCanvas = document.getElementById("hiddenCanvas");
+        const snapshotCanvas = document.getElementById("snapshotCanvas");
+        const captureBtn = document.getElementById("captureBtn");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const imageUpload = document.getElementById("imageUpload");
+        const emotionBars = document.getElementById("emotionBars");
 
-            <!-- HIDDEN CANVAS -->
-            <canvas
-                id="hiddenCanvas"
-                style="display:none;">
-            </canvas>
+        const stressChart = new Chart(
+            document.getElementById("stressChart").getContext("2d"),
+            {
+                type: "line",
+                data: {
+                    labels: Array(30).fill(""),
+                    datasets: [{
+                        data: Array(30).fill(0),
+                        borderColor: "#ff007f",
+                        backgroundColor: "rgba(255, 0, 127, 0.2)",
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: "#b0c4de" },
+                            grid: { color: "rgba(255, 255, 255, 0.1)" }
+                        },
+                        x: { display: false }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            }
+        );
 
-            <!-- SNAPSHOT -->
-            <canvas
-                id="snapshotCanvas"
-                class="video-stream"
-                style="display:none;">
-            </canvas>
+        function emptyInfo(emotion, label) {
+            return {
+                emotion,
+                stress_value: 0,
+                stress_label: label,
+                emotion_probs: Object.fromEntries(EMOTIONS.map((name) => [name, 0]))
+            };
+        }
 
-        </div>
+        function updateMetrics(info) {
+            const safeInfo = info || emptyInfo("No Result", "Try again");
+            const stressValue = Number(safeInfo.stress_value || 0);
+            const stressPercent = Math.max(0, Math.min(100, Math.round(stressValue * 100)));
 
-    </div>
+            document.getElementById("valEmotion").innerText = safeInfo.emotion || "N/A";
+            document.getElementById("valStressPct").innerText = `${stressPercent}%`;
+            document.getElementById("valLabel").innerText = safeInfo.stress_label || "N/A";
 
-    <!-- CONTROLS -->
+            const probs = safeInfo.emotion_probs || {};
+            emotionBars.innerHTML = EMOTIONS.map((emotion) => {
+                const pct = Math.max(0, Math.min(100, Math.round(Number(probs[emotion] || 0) * 100)));
+                return `
+                    <div class="emotion-card">
+                        <div class="emotion-row">
+                            <span>${emotion}</span>
+                            <strong>${pct}%</strong>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
 
-    <div class="controls">
+            const data = stressChart.data.datasets[0].data;
+            data.push(stressPercent);
+            data.shift();
+            stressChart.update();
+        }
 
-        <button
-            id="captureBtn"
-            class="capture-btn"
-            onclick="toggleCapture()">
+        async function startWebcam() {
+            updateMetrics(emptyInfo("Starting Camera", "Allow camera access"));
 
-            📸 Capture Live Frame
-
-        </button>
-
-        <input
-            type="file"
-            id="imageUpload"
-            accept="image/*"
-            style="display:none;"
-            onchange="uploadImage(event)">
-
-        <button
-            class="upload-btn"
-            onclick="document.getElementById('imageUpload').click()">
-
-            📁 Upload Picture
-
-        </button>
-
-    </div>
-
-    <!-- STATUS -->
-
-    <div class="status-panel">
-
-        <div class="status-badge">
-            Emotion:
-            <strong id="valEmotion">Waiting...</strong>
-        </div>
-
-        <div class="status-badge">
-            Stress:
-            <strong id="valStressPct">0%</strong>
-        </div>
-
-        <div class="status-badge" id="badgeLabel">
-            Level:
-            <strong id="valLabel">Waiting...</strong>
-        </div>
-
-    </div>
-
-    <!-- EMOTION BARS -->
-
-    <div class="section">
-
-        <h3>Emotion Breakdown</h3>
-
-        <div id="emotionBars"></div>
-
-    </div>
-
-    <!-- CHART -->
-
-    <div class="section">
-
-        <div class="chart-box">
-
-            <h3>Live Stress Trend</h3>
-
-            <canvas id="stressChart"></canvas>
-
-        </div>
-
-    </div>
-
-</div>
-
-<script>
-
-    let isCaptured = false;
-    let isUploaded = false;
-
-    const webcam =
-        document.getElementById("webcam");
-
-    const hiddenCanvas =
-        document.getElementById("hiddenCanvas");
-
-    const snapshotCanvas =
-        document.getElementById("snapshotCanvas");
-
-    // =============================
-    // START WEBCAM
-    // =============================
-
-    async function startWebcam() {
-
-        try {
-
-            const stream =
-                await navigator.mediaDevices.getUserMedia({
-                    video: true,
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: "user"
+                    },
                     audio: false
                 });
 
-            webcam.srcObject = stream;
-
-            startRealtimeAnalysis();
-
+                webcam.srcObject = stream;
+                webcam.onloadedmetadata = () => {
+                    webcam.play();
+                    updateMetrics(emptyInfo("Analyzing...", "Camera active"));
+                    startRealtimeAnalysis();
+                };
+            } catch (err) {
+                console.error("Camera error:", err);
+                updateMetrics(emptyInfo("Camera Blocked", "Camera permission needed"));
+            }
         }
-        catch(err) {
 
-            console.error(err);
+        async function sendFrameToBackend() {
+            if (isCaptured || isUploaded || isAnalyzing) return;
+            if (webcam.readyState < 2 || webcam.videoWidth === 0 || webcam.videoHeight === 0) return;
 
-            alert("Camera access denied.");
+            isAnalyzing = true;
+
+            hiddenCanvas.width = webcam.videoWidth;
+            hiddenCanvas.height = webcam.videoHeight;
+            hiddenCanvas.getContext("2d").drawImage(webcam, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+
+            try {
+                const res = await fetch("/analyze_frame", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ image: hiddenCanvas.toDataURL("image/jpeg", 0.85) })
+                });
+
+                const data = await res.json();
+                updateMetrics(data);
+            } catch (err) {
+                console.error("Analyze error:", err);
+                updateMetrics(emptyInfo("Connection Error", "Backend not responding"));
+            } finally {
+                isAnalyzing = false;
+            }
         }
-    }
 
-    // =============================
-    // SEND FRAME TO BACKEND
-    // =============================
-
-    async function sendFrameToBackend() {
-
-        if(isCaptured || isUploaded) return;
-
-        const ctx =
-            hiddenCanvas.getContext("2d");
-
-        hiddenCanvas.width =
-            webcam.videoWidth;
-
-        hiddenCanvas.height =
-            webcam.videoHeight;
-
-        ctx.drawImage(
-            webcam,
-            0,
-            0,
-            hiddenCanvas.width,
-            hiddenCanvas.height
-        );
-
-        const imageData =
-            hiddenCanvas.toDataURL("image/jpeg");
-
-        try {
-
-            const res = await fetch("/analyze_frame", {
-
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json"
-                },
-
-                body: JSON.stringify({
-                    image: imageData
-                })
-
-            });
-
-            const data = await res.json();
-
-            updateMetrics(data);
-
+        function startRealtimeAnalysis() {
+            if (realtimeTimer) return;
+            sendFrameToBackend();
+            realtimeTimer = setInterval(sendFrameToBackend, 1500);
         }
-        catch(err) {
 
-            console.error(err);
-        }
-    }
+        function toggleCapture() {
+            if (!isCaptured) {
+                if (webcam.videoWidth === 0 || webcam.videoHeight === 0) return;
 
-    // =============================
-    // REALTIME LOOP
-    // =============================
+                snapshotCanvas.width = webcam.videoWidth;
+                snapshotCanvas.height = webcam.videoHeight;
+                snapshotCanvas.getContext("2d").drawImage(webcam, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
 
-    function startRealtimeAnalysis() {
-
-        setInterval(() => {
-
-            if(!isCaptured && !isUploaded) {
-
-                sendFrameToBackend();
+                webcam.style.display = "none";
+                snapshotCanvas.style.display = "block";
+                captureBtn.innerText = "Resume Live Video";
+                isCaptured = true;
+                return;
             }
 
-        }, 1500);
-    }
-
-    // =============================
-    // UPDATE UI
-    // =============================
-
-    function updateMetrics(info) {
-
-        document.getElementById('valEmotion')
-            .innerText = info.emotion || 'N/A';
-
-        document.getElementById('valStressPct')
-            .innerText =
-                Math.round(
-                    (info.stress_value || 0) * 100
-                ) + '%';
-
-        document.getElementById('valLabel')
-            .innerText =
-                info.stress_label || 'N/A';
-
-        // emotion bars
-
-        const barsContainer =
-            document.getElementById('emotionBars');
-
-        if(info.emotion_probs) {
-
-            let html = '';
-
-            for(const [emo, prob]
-                of Object.entries(info.emotion_probs)) {
-
-                const pct =
-                    Math.round(prob * 100);
-
-                html += `
-
-                <div style="
-                    background: rgba(0,0,0,0.3);
-                    padding: 10px;
-                    border-radius: 8px;
-                ">
-
-                    <div style="
-                        display:flex;
-                        justify-content:space-between;
-                        margin-bottom:5px;
-                    ">
-
-                        <span>${emo}</span>
-                        <strong>${pct}%</strong>
-
-                    </div>
-
-                    <div style="
-                        width:100%;
-                        background:rgba(255,255,255,0.1);
-                        height:6px;
-                        border-radius:4px;
-                    ">
-
-                        <div style="
-                            width:${pct}%;
-                            background:#00d4ff;
-                            height:100%;
-                        "></div>
-
-                    </div>
-
-                </div>
-                `;
-            }
-
-            barsContainer.innerHTML = html;
-        }
-
-        // chart update
-
-        const stressVal =
-            Math.round(
-                (info.stress_value || 0) * 100
-            );
-
-        const data =
-            stressChart.data.datasets[0].data;
-
-        data.push(stressVal);
-
-        data.shift();
-
-        stressChart.update();
-    }
-
-    // =============================
-    // CAPTURE BUTTON
-    // =============================
-
-    function toggleCapture() {
-
-        const btn =
-            document.getElementById("captureBtn");
-
-        if(!isCaptured) {
-
-            snapshotCanvas.style.display =
-                "block";
-
-            webcam.style.display =
-                "none";
-
-            snapshotCanvas.width =
-                webcam.videoWidth;
-
-            snapshotCanvas.height =
-                webcam.videoHeight;
-
-            const ctx =
-                snapshotCanvas.getContext("2d");
-
-            ctx.drawImage(
-                webcam,
-                0,
-                0,
-                snapshotCanvas.width,
-                snapshotCanvas.height
-            );
-
-            btn.innerHTML =
-                "🔄 Resume Live Video";
-
-            isCaptured = true;
-        }
-        else {
-
-            snapshotCanvas.style.display =
-                "none";
-
-            webcam.style.display =
-                "block";
-
-            btn.innerHTML =
-                "📸 Capture Live Frame";
-
+            snapshotCanvas.style.display = "none";
+            webcam.style.display = "block";
+            captureBtn.innerText = "Capture Live Frame";
             isCaptured = false;
+            isUploaded = false;
         }
-    }
 
-    // =============================
-    // IMAGE UPLOAD
-    // =============================
+        async function uploadImage() {
+            const file = imageUpload.files[0];
+            if (!file) return;
 
-    async function uploadImage(e) {
+            const formData = new FormData();
+            formData.append("image", file);
 
-        const file = e.target.files[0];
-
-        if(!file) return;
-
-        const formData = new FormData();
-
-        formData.append("image", file);
-
-        try {
-
-            const res =
-                await fetch('/upload_image', {
-
-                    method: 'POST',
+            try {
+                const res = await fetch("/upload_image", {
+                    method: "POST",
                     body: formData
                 });
 
-            const data = await res.json();
-
-            updateMetrics(data.info);
-
-            const img = new Image();
-
-            img.onload = function() {
-
-                webcam.style.display =
-                    "none";
-
-                snapshotCanvas.style.display =
-                    "block";
-
-                snapshotCanvas.width =
-                    img.width;
-
-                snapshotCanvas.height =
-                    img.height;
-
-                const ctx =
-                    snapshotCanvas.getContext("2d");
-
-                ctx.drawImage(img, 0, 0);
-            };
-
-            img.src = data.image;
-
-            isUploaded = true;
-            isCaptured = true;
-
-        }
-        catch(err) {
-
-            console.error(err);
-
-            alert("Upload failed");
-        }
-    }
-
-    // =============================
-    // CHART
-    // =============================
-
-    const ctxChart =
-        document.getElementById('stressChart')
-            .getContext('2d');
-
-    const stressChart = new Chart(ctxChart, {
-
-        type: 'line',
-
-        data: {
-
-            labels: Array(30).fill(''),
-
-            datasets: [{
-
-                label: 'Stress',
-
-                data: Array(30).fill(0),
-
-                borderColor: '#ff007f',
-
-                backgroundColor:
-                    'rgba(255,0,127,0.2)',
-
-                borderWidth: 2,
-
-                fill: true,
-
-                tension: 0.4,
-
-                pointRadius: 0
-            }]
-        },
-
-        options: {
-
-            responsive: true,
-
-            animation: false,
-
-            scales: {
-
-                y: {
-
-                    beginAtZero: true,
-
-                    max: 100,
-
-                    ticks: {
-                        color: '#b0c4de'
-                    },
-
-                    grid: {
-                        color:
-                            'rgba(255,255,255,0.1)'
-                    }
-                },
-
-                x: {
-                    display: false
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    updateMetrics(emptyInfo("Upload Error", data.error || "Upload failed"));
+                    return;
                 }
-            },
 
-            plugins: {
+                updateMetrics(data.info);
 
-                legend: {
-                    display: false
-                }
+                const img = new Image();
+                img.onload = () => {
+                    snapshotCanvas.width = img.width;
+                    snapshotCanvas.height = img.height;
+                    snapshotCanvas.getContext("2d").drawImage(img, 0, 0);
+                    webcam.style.display = "none";
+                    snapshotCanvas.style.display = "block";
+                };
+                img.src = data.image;
+
+                isUploaded = true;
+                isCaptured = true;
+                captureBtn.innerText = "Resume Live Video";
+            } catch (err) {
+                console.error("Upload error:", err);
+                updateMetrics(emptyInfo("Upload Error", "Backend not responding"));
             }
         }
-    });
 
-    // =============================
-    // START APP
-    // =============================
+        captureBtn.addEventListener("click", toggleCapture);
+        uploadBtn.addEventListener("click", () => imageUpload.click());
+        imageUpload.addEventListener("change", uploadImage);
 
-    startWebcam();
-
-</script>
-
+        updateMetrics(emptyInfo("Waiting...", "Waiting..."));
+        startWebcam();
+    </script>
 </body>
 </html>
