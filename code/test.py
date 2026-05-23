@@ -25,7 +25,7 @@ face_cascade = cv2.CascadeClassifier(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, "_mini_XCEPTION.102-0.66.hdf5")
-USE_TF_MODEL = os.environ.get("USE_TF_MODEL", "0") == "1"
+USE_TF_MODEL = os.environ.get("USE_TF_MODEL", "1") == "1"
 
 emotion_classifier = None
 model_height = 64
@@ -116,6 +116,22 @@ def fallback_emotion_finder(face_roi):
     contrast = float(np.std(roi)) / 128.0
     edges = cv2.Canny(roi, 60, 140)
     edge_density = float(np.mean(edges > 0))
+
+    smile_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + 'haarcascade_smile.xml'
+    )
+    smiles = smile_cascade.detectMultiScale(
+        roi,
+        scaleFactor=1.7,
+        minNeighbors=18,
+        minSize=(12, 12)
+    )
+
+    if len(smiles) > 0:
+        preds = np.array([0.03, 0.01, 0.03, 0.78, 0.03, 0.04, 0.08])
+        stress_val, stress_lbl = get_stress_from_emotions(preds)
+        probs_dict = {EMOTIONS[i].title(): float(preds[i]) for i in range(len(EMOTIONS))}
+        return "happy", stress_val, stress_lbl, probs_dict
 
     stress_score = np.clip((contrast * 0.45) + (edge_density * 1.8) + ((0.55 - brightness) * 0.25), 0.0, 1.0)
 
