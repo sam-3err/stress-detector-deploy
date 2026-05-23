@@ -1,5 +1,5 @@
 from flask import Flask, render_template, Response, jsonify, request
-from test import VideoCamera, process_image_array
+from .test import VideoCamera, process_image_array
 import test
 import cv2
 import numpy as np
