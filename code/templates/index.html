@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-gradient: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
@@ -274,38 +273,44 @@
         const imageUpload = document.getElementById("imageUpload");
         const emotionBars = document.getElementById("emotionBars");
 
-        const stressChart = new Chart(
-            document.getElementById("stressChart").getContext("2d"),
-            {
-                type: "line",
-                data: {
-                    labels: Array(30).fill(""),
-                    datasets: [{
-                        data: Array(30).fill(0),
-                        borderColor: "#ff007f",
-                        backgroundColor: "rgba(255, 0, 127, 0.2)",
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    animation: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: { color: "#b0c4de" },
-                            grid: { color: "rgba(255, 255, 255, 0.1)" }
-                        },
-                        x: { display: false }
-                    },
-                    plugins: { legend: { display: false } }
-                }
+        const stressCanvas = document.getElementById("stressChart");
+        const stressCtx = stressCanvas.getContext("2d");
+        const stressHistory = Array(30).fill(0);
+
+        function drawStressChart() {
+            const width = stressCanvas.clientWidth || 600;
+            const height = 220;
+            const ratio = window.devicePixelRatio || 1;
+
+            stressCanvas.width = Math.round(width * ratio);
+            stressCanvas.height = Math.round(height * ratio);
+            stressCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            stressCtx.clearRect(0, 0, width, height);
+
+            stressCtx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+            stressCtx.lineWidth = 1;
+            for (let i = 0; i <= 4; i += 1) {
+                const y = (height / 4) * i;
+                stressCtx.beginPath();
+                stressCtx.moveTo(0, y);
+                stressCtx.lineTo(width, y);
+                stressCtx.stroke();
             }
-        );
+
+            stressCtx.beginPath();
+            stressHistory.forEach((value, index) => {
+                const x = (width / (stressHistory.length - 1)) * index;
+                const y = height - (value / 100) * height;
+                if (index === 0) {
+                    stressCtx.moveTo(x, y);
+                } else {
+                    stressCtx.lineTo(x, y);
+                }
+            });
+            stressCtx.strokeStyle = "#ff007f";
+            stressCtx.lineWidth = 2;
+            stressCtx.stroke();
+        }
 
         function emptyInfo(emotion, label) {
             return {
@@ -341,10 +346,9 @@
                 `;
             }).join("");
 
-            const data = stressChart.data.datasets[0].data;
-            data.push(stressPercent);
-            data.shift();
-            stressChart.update();
+            stressHistory.push(stressPercent);
+            stressHistory.shift();
+            drawStressChart();
         }
 
         async function startWebcam() {
@@ -353,8 +357,8 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
+                        width: { ideal: 320 },
+                        height: { ideal: 240 },
                         facingMode: "user"
                     },
                     audio: false
@@ -378,16 +382,23 @@
 
             isAnalyzing = true;
 
-            hiddenCanvas.width = webcam.videoWidth;
-            hiddenCanvas.height = webcam.videoHeight;
+            const maxWidth = 240;
+            const scale = Math.min(1, maxWidth / webcam.videoWidth);
+            hiddenCanvas.width = Math.round(webcam.videoWidth * scale);
+            hiddenCanvas.height = Math.round(webcam.videoHeight * scale);
             hiddenCanvas.getContext("2d").drawImage(webcam, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
 
             try {
                 const res = await fetch("/analyze_frame", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ image: hiddenCanvas.toDataURL("image/jpeg", 0.85) })
+                    body: JSON.stringify({ image: hiddenCanvas.toDataURL("image/jpeg", 0.7) })
                 });
+
+                const contentType = res.headers.get("content-type") || "";
+                if (!contentType.includes("application/json")) {
+                    throw new Error(`Server returned ${res.status}`);
+                }
 
                 const data = await res.json();
                 updateMetrics(data);
@@ -472,6 +483,7 @@
         imageUpload.addEventListener("change", uploadImage);
 
         updateMetrics(emptyInfo("Waiting...", "Waiting..."));
+        window.addEventListener("resize", drawStressChart);
         startWebcam();
     </script>
 </body>

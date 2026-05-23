@@ -4,6 +4,10 @@ import os
 import threading
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+os.environ['TF_NUM_INTEROP_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
 
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
