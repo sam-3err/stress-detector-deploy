@@ -33,6 +33,7 @@ model_path = os.path.join(BASE_DIR, "_mini_XCEPTION.102-0.66.hdf5")
 print("Loading model from:", model_path)
 
 emotion_classifier = load_model(model_path, compile=False)
+print("MODEL INPUT SHAPE:", emotion_classifier.input_shape)
 model_input_shape = emotion_classifier.input_shape
 model_height = model_input_shape[1] or 64
 model_width = model_input_shape[2] or 64
@@ -111,13 +112,10 @@ def emotion_finder(face_bb, frame):
     else:
         roi = cv2.resize(roi, (model_width, model_height))
 
-    # Ensure ROI is grayscale and has 1 channel (img_to_array handles this)
-
     roi = roi.astype("float") / 255.0
     roi = img_to_array(roi)
     roi = np.expand_dims(roi, axis=0)
 
-    # Use a threading lock to prevent concurrent prediction crashes in TensorFlow
     with model_lock:
         preds = emotion_classifier.predict(roi, verbose=0)[0]
         
